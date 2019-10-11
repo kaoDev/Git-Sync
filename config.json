@@ -1,0 +1,9 @@
+{
+  "syncIntervalSeconds": 60,
+  "syncRepositories": [
+    {
+      "source": "git@gitlab.com:PUT/REPO-SOURCE-URL-HERE.git",
+      "target": "git@bitbucket.org:PUT/TARGET-URL-HERE.git"
+    }
+  ]
+}
