@@ -14,5 +14,15 @@ a small tool to sync a git repository to a mirrored location
 
 - install dependencies with `yarn install`
 - configure repositories to sync in `./config.json`
-- configure sync interval in `./config.json`
 - start sync process with the command `yarn start`
+
+## configuration
+
+- `onlyRunOnce` (`true`), makes sure that the program doesn't schedule further
+  updates, so the `interval` setting is ignored. If you are running this program
+  as a scheduled job make sure to set this flag to `true`
+- `cleanRepoOnRun` (`false`), flag to indicate if the cloned repository
+  directory should cleaned before every run
+- `syncIntervalSeconds` (`60`), interval in seconds in which the source
+  repository should get pulled and updates should be pushed to the target.
+  Ignored if `onlyRunOnce` is set to `true`
