@@ -1,4 +1,6 @@
 {
+  "onlyRunOnce": true,
+  "cleanRepoOnRun": false,
   "syncIntervalSeconds": 60,
   "syncRepositories": [
     {

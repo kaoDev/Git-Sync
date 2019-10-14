@@ -3,7 +3,7 @@ import { promisify } from 'util';
 import path from 'path';
 import crypto from 'crypto';
 import { interval, from } from 'rxjs';
-import { mergeMap, startWith, switchMapTo } from 'rxjs/operators';
+import { mergeMap, startWith } from 'rxjs/operators';
 import { ExecOptions, spawn } from 'child_process';
 import config from '../config.json';
 
@@ -54,44 +54,60 @@ const cleanRepoFolder = async (localRepositoryDirectory: string) => {
   }
 };
 
-const startRepoSync = (sourceUrl: string, targetUrl: string) => {
+const cloneRepo = async (
+  localRepositoryDirectory: string,
+  sourceUrl: string,
+) => {
+  console.log('clone source repository');
+  await fsMkDirAsync(localRepositoryDirectory, { recursive: true });
+  await spawnAsync(
+    'git',
+    ['clone', '--mirror', sourceUrl, localRepositoryDirectory],
+    { cwd: process.cwd() },
+  );
+};
+
+const setMirrorPushTarget = async (
+  localRepositoryDirectory: string,
+  targetUrl: string,
+) => {
+  console.log('add mirror target to push', targetUrl);
+  await spawnAsync('git', ['remote', 'set-url', '--push origin', targetUrl], {
+    cwd: localRepositoryDirectory,
+  });
+};
+const setupRepositoryFolder = async (
+  localRepositoryDirectory: string,
+  sourceUrl: string,
+  targetUrl: string,
+) => {
+  await cleanRepoFolder(localRepositoryDirectory);
+  await cloneRepo(localRepositoryDirectory, sourceUrl);
+  await setMirrorPushTarget(localRepositoryDirectory, targetUrl);
+};
+
+const startRepoSync = async (sourceUrl: string, targetUrl: string) => {
   console.log('starting git sync for ', sourceUrl, 'to ', targetUrl);
-  const sourceUrlHash = crypto
+  const repoHash = crypto
     .createHash('md5')
-    .update(sourceUrl)
+    .update(`${sourceUrl}->${targetUrl}`)
     .digest('hex')
     .toString();
 
-  const localRepositoryDirectory = path.join(
-    process.cwd(),
-    'repos',
-    sourceUrlHash,
-  );
+  const localRepositoryDirectory = path.join(process.cwd(), 'repos', repoHash);
 
-  from(cleanRepoFolder(localRepositoryDirectory))
+  if (
+    config.cleanRepoOnRun ||
+    !(await fsExistsAsync(localRepositoryDirectory))
+  ) {
+    await setupRepositoryFolder(localRepositoryDirectory, sourceUrl, targetUrl);
+  }
+
+  (config.onlyRunOnce
+    ? from([0])
+    : interval(config.syncIntervalSeconds * 1000).pipe(startWith(0))
+  )
     .pipe(
-      mergeMap(async () => {
-        console.log('clone source repository');
-        await fsMkDirAsync(localRepositoryDirectory, { recursive: true });
-        await spawnAsync(
-          'git',
-          ['clone', '--mirror', sourceUrl, localRepositoryDirectory],
-          { cwd: process.cwd() },
-        );
-      }),
-      mergeMap(async () => {
-        console.log('add mirror target to push', targetUrl);
-        await spawnAsync(
-          'git',
-          ['remote', 'set-url', '--push origin', targetUrl],
-          {
-            cwd: localRepositoryDirectory,
-          },
-        );
-      }),
-      switchMapTo(
-        interval(config.syncIntervalSeconds * 1000).pipe(startWith(0)),
-      ),
       mergeMap(async () => {
         console.log('fetch updates from', sourceUrl);
         await spawnAsync('git', ['fetch', '-p', 'origin'], {
